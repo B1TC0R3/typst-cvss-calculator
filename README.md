@@ -13,7 +13,9 @@ it with the following lines:
 #cvss("AV:L/AC:L/PR:N/UI:N/S:C/C:N/I:N/A:H")
 ```
 
-The output of the above vector will look like this:
+The output of the above vector will look like the below image.
+Note that the rendered vector will also be a clickable link to
+the official CVSS 3.1 calculator results.
 
 ![Preview](./img/preview.png)
 
