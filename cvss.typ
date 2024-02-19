@@ -360,7 +360,7 @@ The Modified Exploitability sub score is,
         [*Base Score:*],     [#cvss_data.base], 
         [*Impact:*],         [#calc.round(cvss_data.impact, digits: 1)],
         [*Exploitability:*], [#calc.round(cvss_data.exploitability, digits: 1)],
-        [*Temporal Score*],  [#cvss_data.temporal],
+        [*Temporal Score:*],  [#cvss_data.temporal],
       )
       
       #bar_chart(
