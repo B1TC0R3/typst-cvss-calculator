@@ -85,7 +85,7 @@
     // Special case where value of 'privileges required' changes when scope 
     // change is possible
     if category == "PR" {
-      if vector.contains("S:C") {
+      if vector.contains("S:C") or vector.contains("MS:C") {
         if letter == "L" {
           number = 0.68
         } else if letter == "P" {
@@ -104,7 +104,7 @@
 }
 
 /*
- * Round up values to the next higher d-th deciaml.
+ * Round up values to the next higher d-th decimal.
  * Example:
  *
  * round-up(1.84, 1) = 1.9
@@ -120,25 +120,26 @@
 
 /*
 CVSS v3.1 Equations
-
 The CVSS v3.1 equations are defined below.
+
 Base
 
-The Base Score is a function of the Impact and Exploitability sub score equations. Where the Base score is defined as,
+The Base Score is a function of the Impact and Exploitability sub score equations. Where the Base score is defined as
+
     If (Impact sub score <= 0)     0 else,
     Scope Unchanged4                 𝑅𝑜𝑢𝑛𝑑𝑢𝑝(𝑀𝑖𝑛𝑖𝑚𝑢𝑚[(𝐼𝑚𝑝𝑎𝑐𝑡 + 𝐸𝑥𝑝𝑙𝑜𝑖𝑡𝑎𝑏𝑖𝑙𝑖𝑡𝑦), 10])
     Scope Changed                      𝑅𝑜𝑢𝑛𝑑𝑢𝑝(𝑀𝑖𝑛𝑖𝑚𝑢𝑚[1.08 × (𝐼𝑚𝑝𝑎𝑐𝑡 + 𝐸𝑥𝑝𝑙𝑜𝑖𝑡𝑎𝑏𝑖𝑙𝑖𝑡𝑦), 10])
 
-and the Impact sub score (ISC) is defined as,
+and the Impact sub score (ISC) is defined as
 
     Scope Unchanged 6.42 × 𝐼𝑆𝐶Base
     Scope Changed 7.52 × [𝐼𝑆𝐶𝐵𝑎𝑠𝑒 − 0.029] − 3.25 × [𝐼𝑆𝐶𝐵𝑎𝑠𝑒 − 0.02]15
 
-Where,
+Where
 
     𝐼𝑆𝐶𝐵𝑎𝑠𝑒 = 1 − [(1 − 𝐼𝑚𝑝𝑎𝑐𝑡𝐶𝑜𝑛𝑓) × (1 − 𝐼𝑚𝑝𝑎𝑐𝑡𝐼𝑛𝑡𝑒𝑔) × (1 − 𝐼𝑚𝑝𝑎𝑐𝑡𝐴𝑣𝑎𝑖𝑙)]
 
- And the Exploitability sub score is,
+And the Exploitability sub score is
 
     8.22 × 𝐴𝑡𝑡𝑎𝑐𝑘𝑉𝑒𝑐𝑡𝑜𝑟 × 𝐴𝑡𝑡𝑎𝑐𝑘𝐶𝑜𝑚𝑝𝑙𝑒𝑥𝑖𝑡𝑦 × 𝑃𝑟𝑖𝑣𝑖𝑙𝑒𝑔𝑒𝑅𝑒𝑞𝑢𝑖𝑟𝑒𝑑 × 𝑈𝑠𝑒𝑟𝐼𝑛𝑡𝑒𝑟𝑎𝑐𝑡𝑖𝑜𝑛
 */
@@ -162,16 +163,7 @@ Where,
   return 8.22 * av * ac * pr * ui
 }
 
-#let base-cvss-score(
-  av: 0, 
-  ac: 0, 
-  pr: 0, 
-  ui: 0, 
-  s : 0, 
-  c : 0, 
-  i : 0, 
-  a : 0,
-) = {
+#let base-cvss-score(av, ac, pr, ui, s, c, i, a) = {
   let score = 0
   let isc   = impact(s, c, i, a)
   let esc   = exploitability(av, ac, pr, ui)
@@ -191,22 +183,17 @@ Where,
 
 /*
 Temporal
-The Temporal score is defined as,
+The Temporal score is defined as
 
     𝑅𝑜𝑢𝑛𝑑𝑢𝑝(𝐵𝑎𝑠𝑒𝑆𝑐𝑜𝑟𝑒 × 𝐸𝑥𝑝𝑙𝑜𝑖𝑡𝐶𝑜𝑑𝑒𝑀𝑎𝑡𝑢𝑟𝑖𝑡𝑦 × 𝑅𝑒𝑚𝑒𝑑𝑖𝑎𝑡𝑖𝑜𝑛𝐿𝑒𝑣𝑒𝑙 × 𝑅𝑒𝑝𝑜𝑟𝑡𝐶𝑜𝑛𝑓𝑖𝑑𝑒𝑛𝑐𝑒)
 */
-#let temporal-cvss-score(
-  base_score:10,
-  e : 0,
-  rl: 0,
-  rc: 0
-) = {
+#let temporal-cvss-score(base_score, e, rl, rc) = {
   return round-up(base_score * e * rl * rc, 1)
 }
 
 /*
 Environmental
-The environmental score is defined as,
+The environmental score is defined as
 
     If (Modified Impact Sub score <= 0)     0 else,
 
@@ -229,7 +216,6 @@ The Modified Exploitability sub score is,
 */
 #let environmental-cvss-score() = {
   assert(false, "Environmental CVSS score not yet implemented!")
-  //For later: PR values changes when modified scope is set to 'changed'!
 }
 
 /*
@@ -254,21 +240,21 @@ The Modified Exploitability sub score is,
   )
   
   let base_cvss_score = base-cvss-score(
-    ac: parsed_vector.AV,
-    av: parsed_vector.AC,
-    pr: parsed_vector.PR,
-    ui: parsed_vector.UI,
-    s: parsed_vector.S,
-    c: parsed_vector.C,
-    i: parsed_vector.I,
-    a: parsed_vector.A,
+    parsed_vector.AV,
+    parsed_vector.AC,
+    parsed_vector.PR,
+    parsed_vector.UI,
+    parsed_vector.S,
+    parsed_vector.C,
+    parsed_vector.I,
+    parsed_vector.A,
   )
 
   let temporal_cvss_score = temporal-cvss-score(
-    base_score: base_cvss_score,
-    e: parsed_vector.E,
-    rl: parsed_vector.RL,
-    rc: parsed_vector.RC
+    base_cvss_score,
+    parsed_vector.E,
+    parsed_vector.RL,
+    parsed_vector.RC
   )
 
   return (
@@ -360,7 +346,7 @@ The Modified Exploitability sub score is,
         [*Base Score:*],     [#cvss_data.base], 
         [*Impact:*],         [#calc.round(cvss_data.impact, digits: 1)],
         [*Exploitability:*], [#calc.round(cvss_data.exploitability, digits: 1)],
-        [*Temporal Score:*],  [#cvss_data.temporal],
+        [*Temporal Score:*], [#cvss_data.temporal],
       )
       
       #bar_chart(
