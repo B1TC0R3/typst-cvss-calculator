@@ -22,7 +22,7 @@
     PR: (
       N: 0.85,
       L: 0.62,
-      P: 0.27,
+      H: 0.27,
     ),
     UI: (
       N: 0.85,
@@ -72,38 +72,46 @@
       A: 0.62,
       L: 0.55,
       P: 0.2,
+      X: 1,
     ),
     MAC: (
       L: 0.77,
       H: 0.44,
+      X: 1,
     ),
     MPR: (
       N: 0.85,
       L: 0.62,
-      P: 0.27,
+      H: 0.27,
+      X: 1,
     ),
     MUI: (
       N: 0.85,
       R: 0.62,
+      X: 1,
     ),
     MS: (
       U: 0,
       C: 1,
+      X: 1,
     ),
     MC: (
       N: 0,
       L: 0.22,
       H: 0.56,
+      X: 1,
     ),
     MI: (
       N: 0,
       L: 0.22,
       H: 0.56,
+      X: 1,
     ),
     MA: (
       N: 0,
       L: 0.22,
       H: 0.56,
+      X: 1,
     ),
     CR: (
       X: 1,
@@ -141,19 +149,25 @@
     // Special case where value of 'privileges required' changes when scope 
     // change is possible
     if (
-      (category == "PR"  and vector.contains("S:C") ) or
+      (category == "PR"  and vector.contains("S:C")) or
       (category == "MPR" and vector.contains("MS:C"))
     ) {
       if letter == "L" {
         number = 0.68
-      } else if letter == "P" {
+      } else if letter == "H" {
         number = 0.5
       }
+    }
+
+    // If the environmental score contains non-defined values, copy the original value
+    if category.starts-with("M") and letter == "X" {
+      let original_category = category.trim("M")  
+      number = parsed_vector.at(original_category)
     }
     
     parsed_vector.insert(
       category,
-      mapping.at(category).at(letter)
+      number
     )
   }
 
@@ -161,9 +175,27 @@
 }
 
 #let has-temporal-subvector(vector) = {
-  return (vector.contains(regex("E:[XUPFH]"))  and
-          vector.contains(regex("RL:[XOTWU]")) and
-          vector.contains(regex("RC:[XURC]"))
+  return (
+    vector.contains(regex("RL:[XOTWU]")) and
+    vector.contains(regex("E:[XUPFH]"))  and
+    vector.contains(regex("RC:[XURC]"))
+  )
+}
+
+#let has-environmental-subvector(vector) = {
+  return (
+    has-temporal-subvector(vector)       and
+    vector.contains(regex("MPR:[XNLH]")) and
+    vector.contains(regex("MAV:[XNA]"))  and
+    vector.contains(regex("MAC:[XLH]"))  and
+    vector.contains(regex("MUI:[XNR]"))  and
+    vector.contains(regex("MC:[XNLH]"))  and
+    vector.contains(regex("MI:[XNLH]"))  and
+    vector.contains(regex("MA:[XNLH]"))  and
+    vector.contains(regex("CR:[XLMH]"))  and
+    vector.contains(regex("IR:[XLMH]"))  and
+    vector.contains(regex("AR:[XLMH]"))  and
+    vector.contains(regex("MS:[XUC]"))
   )
 }
 
@@ -223,6 +255,7 @@ And the Exploitability sub score is
   return isc
 }
 
+
 #let exploitability(av, ac, pr, ui) = {
   return 8.22 * av * ac * pr * ui
 }
@@ -278,8 +311,37 @@ The Modified Exploitability sub score is,
 
     8.22 × 𝑀. 𝐴𝑡𝑡𝑎𝑐𝑘𝑉𝑒𝑐𝑡𝑜𝑟 × 𝑀. 𝐴𝑡𝑡𝑎𝑐𝑘𝐶𝑜𝑚𝑝𝑙𝑒𝑥𝑖𝑡𝑦 × 𝑀. 𝑃𝑟𝑖𝑣𝑖𝑙𝑒𝑔𝑒𝑅𝑒𝑞𝑢𝑖𝑟𝑒𝑑 × 𝑀. 𝑈𝑠𝑒𝑟𝐼𝑛𝑡𝑒𝑟𝑎𝑐𝑡𝑖𝑜n
 */
-#let environmental-cvss-score(mav, mac, mpr, mui, ms, mc, mi, ma, cr, ir, ar) = {
-  assert(false, "Environmental CVSS score not yet implemented!")
+#let modified_impact(ms, mc, mi, ma, cr, ir, ar) = {
+  let modified_isc = 0
+  let isc_base = calc.min(
+    (1 - ((1 - (mc * cr)) * (1 - mi * ir) * (1 - ma * ar))),
+    0.915
+  )  
+
+  if (ms == 0) {
+    modified_isc = 6.42 * isc_base
+  } else if (ms == 1) {
+    modified_isc = (7.52 * (isc_base - 0.029)) - (3.25 * calc.pow((isc_base * 0.9731) - 0.02, 13))  
+  }
+
+  return modified_isc
+}
+
+#let environmental-cvss-score(mav, mac, mpr, mui, ms, mc, mi, ma, cr, ir, ar, e, rl, rc) = {
+  let score = 0
+  let modified_isc = modified_impact(ms, mc, mi, ma, cr, ir, ar)
+  let modified_esc = exploitability(mav, mac, mpr, mui)
+
+  if (modified_isc > 0) {
+    if (ms == 0) {
+      score = round-up(round-up(calc.min((modified_isc + modified_esc), 10), 1) * e * rl * rc, 1)
+      
+    } else if (ms == 1) {
+      score = round-up(round-up(calc.min(1.08 * (modified_isc + modified_esc), 10), 1) * e * rl * rc, 1) 
+    }
+  }
+  
+  return score
 }
 
 /*
@@ -326,6 +388,27 @@ The Modified Exploitability sub score is,
       parsed_vector.RL,
       parsed_vector.RC
     ))
+  }
+
+  if (has-environmental-subvector(vector)) {
+    cvss_data.insert("environmental",
+      environmental-cvss-score(
+        parsed_vector.MAV,
+        parsed_vector.MAC,
+        parsed_vector.MPR,
+        parsed_vector.MUI,
+        parsed_vector.MS,
+        parsed_vector.MC,
+        parsed_vector.MI,
+        parsed_vector.MA,
+        parsed_vector.CR,
+        parsed_vector.IR,
+        parsed_vector.AR,
+        parsed_vector.E,
+        parsed_vector.RL,
+        parsed_vector.RC,
+      )
+    )
   }
 
   return cvss_data
@@ -385,6 +468,12 @@ The Modified Exploitability sub score is,
     plot_colors.push(color_from_severity(cvss_data.temporal))
   }
   
+  if (cvss_data.keys().contains("environmental")) {
+    plot_data.push((cvss_data.environmental, "Environmental"))
+    x_axis_values.push("Environmental")
+    plot_colors.push(color_from_severity(cvss_data.environmental))
+  }
+  
   let x_axis = axis(
     values: x_axis_values,
     location: "bottom",
@@ -425,12 +514,19 @@ The Modified Exploitability sub score is,
         [*Impact:*],         [#calc.round(cvss_data.impact, digits: 1)],
         [*Exploitability:*], [#calc.round(cvss_data.exploitability, digits: 1)],
         [*Temporal Score:*], [
-          #if (cvss_data.keys().contains("temporal")) {
+          #if cvss_data.keys().contains("temporal") {
             cvss_data.temporal
           } else { 
             "-" 
           }
         ],
+        [*Environmental Score:*], [
+          #if cvss_data.keys().contains("environmental") {
+            cvss_data.environmental 
+          } else {
+            "-"
+          }
+        ]
       )
       
       #bar_chart(
