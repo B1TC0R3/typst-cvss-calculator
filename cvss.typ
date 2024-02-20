@@ -66,7 +66,63 @@
       U: 0.92,
       R: 0.96,
       C: 1,
-    )
+    ),
+    MAV : (
+      N: 0.85,
+      A: 0.62,
+      L: 0.55,
+      P: 0.2,
+    ),
+    MAC: (
+      L: 0.77,
+      H: 0.44,
+    ),
+    MPR: (
+      N: 0.85,
+      L: 0.62,
+      P: 0.27,
+    ),
+    MUI: (
+      N: 0.85,
+      R: 0.62,
+    ),
+    MS: (
+      U: 0,
+      C: 1,
+    ),
+    MC: (
+      N: 0,
+      L: 0.22,
+      H: 0.56,
+    ),
+    MI: (
+      N: 0,
+      L: 0.22,
+      H: 0.56,
+    ),
+    MA: (
+      N: 0,
+      L: 0.22,
+      H: 0.56,
+    ),
+    CR: (
+      X: 1,
+      L: 0.5,
+      M: 1,
+      H: 1.5,
+    ),
+    IR: (
+      X: 1,
+      L: 0.5,
+      M: 1,
+      H: 1.5,
+    ),
+    AR: (
+      X: 1,
+      L: 0.5,
+      M: 1,
+      H: 1.5,
+    ),
   )
 
   let category = ""
@@ -84,13 +140,14 @@
 
     // Special case where value of 'privileges required' changes when scope 
     // change is possible
-    if category == "PR" {
-      if vector.contains("S:C") or vector.contains("MS:C") {
-        if letter == "L" {
-          number = 0.68
-        } else if letter == "P" {
-          number = 0.5
-        }
+    if (
+      (category == "PR"  and vector.contains("S:C") ) or
+      (category == "MPR" and vector.contains("MS:C"))
+    ) {
+      if letter == "L" {
+        number = 0.68
+      } else if letter == "P" {
+        number = 0.5
       }
     }
     
@@ -101,6 +158,13 @@
   }
 
   return parsed_vector
+}
+
+#let has-temporal-subvector(vector) = {
+  return (vector.contains(regex("E:[XUPFH]"))  and
+          vector.contains(regex("RL:[XOTWU]")) and
+          vector.contains(regex("RC:[XURC]"))
+  )
 }
 
 /*
@@ -214,7 +278,7 @@ The Modified Exploitability sub score is,
 
     8.22 × 𝑀. 𝐴𝑡𝑡𝑎𝑐𝑘𝑉𝑒𝑐𝑡𝑜𝑟 × 𝑀. 𝐴𝑡𝑡𝑎𝑐𝑘𝐶𝑜𝑚𝑝𝑙𝑒𝑥𝑖𝑡𝑦 × 𝑀. 𝑃𝑟𝑖𝑣𝑖𝑙𝑒𝑔𝑒𝑅𝑒𝑞𝑢𝑖𝑟𝑒𝑑 × 𝑀. 𝑈𝑠𝑒𝑟𝐼𝑛𝑡𝑒𝑟𝑎𝑐𝑡𝑖𝑜n
 */
-#let environmental-cvss-score() = {
+#let environmental-cvss-score(mav, mac, mpr, mui, ms, mc, mi, ma, cr, ir, ar) = {
   assert(false, "Environmental CVSS score not yet implemented!")
 }
 
@@ -222,24 +286,28 @@ The Modified Exploitability sub score is,
  * Wrapper function for score calculation. Will return base score, temporal score,
  * impact and exploitability as a dictionary.
  */
-#let all_scores(vector) = {
+#let get_cvss_data(vector) = {
+  let cvss_data = (:)
   let parsed_vector= parse-cvss-vector(vector)
-
-  let impact = impact(
-    parsed_vector.S,
-    parsed_vector.C,
-    parsed_vector.I,
-    parsed_vector.A,
-  )
-
-  let exploitability = exploitability(
-    parsed_vector.AV,
-    parsed_vector.AC,
-    parsed_vector.PR,
-    parsed_vector.UI,
-  )
   
-  let base_cvss_score = base-cvss-score(
+  cvss_data.insert("impact", 
+  impact(
+    parsed_vector.S,
+    parsed_vector.C,
+    parsed_vector.I,
+    parsed_vector.A,
+  ))
+
+  cvss_data.insert("exploitability",
+  exploitability(
+    parsed_vector.AV,
+    parsed_vector.AC,
+    parsed_vector.PR,
+    parsed_vector.UI,
+  ))
+  
+  cvss_data.insert("base",
+  base-cvss-score(
     parsed_vector.AV,
     parsed_vector.AC,
     parsed_vector.PR,
@@ -248,21 +316,19 @@ The Modified Exploitability sub score is,
     parsed_vector.C,
     parsed_vector.I,
     parsed_vector.A,
-  )
+  ))
 
-  let temporal_cvss_score = temporal-cvss-score(
-    base_cvss_score,
-    parsed_vector.E,
-    parsed_vector.RL,
-    parsed_vector.RC
-  )
+  if (has-temporal-subvector(vector)) {
+    cvss_data.insert("temporal", 
+    temporal-cvss-score(
+      cvss_data.base,
+      parsed_vector.E,
+      parsed_vector.RL,
+      parsed_vector.RC
+    ))
+  }
 
-  return (
-    base          : base_cvss_score,
-    temporal      : temporal_cvss_score,
-    impact        : impact,
-    exploitability: exploitability,
-  )
+  return cvss_data
 }
 
 /*
@@ -292,23 +358,35 @@ The Modified Exploitability sub score is,
   let cvss_version        = "3.1"
   let cvss_result_link    = cvss_calculator_url + "?vector=" + vector + "&version=" + cvss_version
 
-  let cvss_data = all_scores(vector)
+  let cvss_data = get_cvss_data(vector)
   
   let plot_data = (
     (cvss_data.base, "Base"),
     (cvss_data.impact, "Impact"),
     (cvss_data.exploitability, "Exploitability"),
-    (cvss_data.temporal, "Temporal"),
   )
-  
-  let x_axis = axis(
-    values: (
+
+  let x_axis_values = (
       "", 
       "Base",
       "Impact",
       "Exploitability",
-      "Temporal",
-    ),
+  )
+
+  let plot_colors = (
+    color_from_severity(cvss_data.base),
+    color_from_severity(cvss_data.impact),
+    color_from_severity(cvss_data.exploitability),
+  )
+  
+  if (cvss_data.keys().contains("temporal")) {
+    plot_data.push((cvss_data.temporal, "Temporal"))
+    x_axis_values.push("Temporal")
+    plot_colors.push(color_from_severity(cvss_data.temporal))
+  }
+  
+  let x_axis = axis(
+    values: x_axis_values,
     location: "bottom",
   )
   
@@ -346,19 +424,20 @@ The Modified Exploitability sub score is,
         [*Base Score:*],     [#cvss_data.base], 
         [*Impact:*],         [#calc.round(cvss_data.impact, digits: 1)],
         [*Exploitability:*], [#calc.round(cvss_data.exploitability, digits: 1)],
-        [*Temporal Score:*], [#cvss_data.temporal],
+        [*Temporal Score:*], [
+          #if (cvss_data.keys().contains("temporal")) {
+            cvss_data.temporal
+          } else { 
+            "-" 
+          }
+        ],
       )
       
       #bar_chart(
         cvss_plot,
         (100%,20%),
         bar_width: 50%,
-        fill: (
-          color_from_severity(cvss_data.base),
-          color_from_severity(cvss_data.impact),
-          color_from_severity(cvss_data.exploitability),
-          color_from_severity(cvss_data.temporal)
-        ),
+        fill: plot_colors,
         caption: none
       )
     ]
