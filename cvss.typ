@@ -311,7 +311,7 @@ The Modified Exploitability sub score is,
 
     8.22 × 𝑀. 𝐴𝑡𝑡𝑎𝑐𝑘𝑉𝑒𝑐𝑡𝑜𝑟 × 𝑀. 𝐴𝑡𝑡𝑎𝑐𝑘𝐶𝑜𝑚𝑝𝑙𝑒𝑥𝑖𝑡𝑦 × 𝑀. 𝑃𝑟𝑖𝑣𝑖𝑙𝑒𝑔𝑒𝑅𝑒𝑞𝑢𝑖𝑟𝑒𝑑 × 𝑀. 𝑈𝑠𝑒𝑟𝐼𝑛𝑡𝑒𝑟𝑎𝑐𝑡𝑖𝑜n
 */
-#let modified_impact(ms, mc, mi, ma, cr, ir, ar) = {
+#let modified-impact(ms, mc, mi, ma, cr, ir, ar) = {
   let modified_isc = 0
   let isc_base = calc.min(
     (1 - ((1 - (mc * cr)) * (1 - mi * ir) * (1 - ma * ar))),
@@ -329,7 +329,7 @@ The Modified Exploitability sub score is,
 
 #let environmental-cvss-score(mav, mac, mpr, mui, ms, mc, mi, ma, cr, ir, ar, e, rl, rc) = {
   let score = 0
-  let modified_isc = modified_impact(ms, mc, mi, ma, cr, ir, ar)
+  let modified_isc = modified-impact(ms, mc, mi, ma, cr, ir, ar)
   let modified_esc = exploitability(mav, mac, mpr, mui)
 
   if (modified_isc > 0) {
