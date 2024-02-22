@@ -458,7 +458,7 @@ The Modified Exploitability sub score is,
  * Parse a CVSS v3.1 vector into a clickable link and automatically calulate the score.
  *
  */
-#let cvss(vector, caption: none) = {
+#let cvss(vector, caption: none, outlined: true) = {
   let cvss_calculator_url = "https://nvd.nist.gov/vuln-metrics/cvss/v3-calculator"
   let cvss_version        = "3.1"
   let cvss_result_link    = cvss_calculator_url + "?vector=" + vector + "&version=" + cvss_version
@@ -519,6 +519,7 @@ The Modified Exploitability sub score is,
 
   figure(
     caption: caption,
+    outlined: outlined,
     box(
       stroke: black,
       fill  : luma(245),
