@@ -311,7 +311,7 @@ The Modified Exploitability sub score is,
 
     8.22 × 𝑀. 𝐴𝑡𝑡𝑎𝑐𝑘𝑉𝑒𝑐𝑡𝑜𝑟 × 𝑀. 𝐴𝑡𝑡𝑎𝑐𝑘𝐶𝑜𝑚𝑝𝑙𝑒𝑥𝑖𝑡𝑦 × 𝑀. 𝑃𝑟𝑖𝑣𝑖𝑙𝑒𝑔𝑒𝑅𝑒𝑞𝑢𝑖𝑟𝑒𝑑 × 𝑀. 𝑈𝑠𝑒𝑟𝐼𝑛𝑡𝑒𝑟𝑎𝑐𝑡𝑖𝑜n
 */
-#let modified-impact(ms, mc, mi, ma, cr, ir, ar) = {
+#let modified_impact(ms, mc, mi, ma, cr, ir, ar) = {
   let modified_isc = 0
   let isc_base = calc.min(
     (1 - ((1 - (mc * cr)) * (1 - mi * ir) * (1 - ma * ar))),
@@ -329,7 +329,7 @@ The Modified Exploitability sub score is,
 
 #let environmental-cvss-score(mav, mac, mpr, mui, ms, mc, mi, ma, cr, ir, ar, e, rl, rc) = {
   let score = 0
-  let modified_isc = modified-impact(ms, mc, mi, ma, cr, ir, ar)
+  let modified_isc = modified_impact(ms, mc, mi, ma, cr, ir, ar)
   let modified_esc = exploitability(mav, mac, mpr, mui)
 
   if (modified_isc > 0) {
@@ -380,6 +380,8 @@ The Modified Exploitability sub score is,
     parsed_vector.A,
   ))
 
+  cvss_data.insert("overall", cvss_data.base)
+
   if (has-temporal-subvector(vector)) {
     cvss_data.insert("temporal", 
     temporal-cvss-score(
@@ -388,6 +390,10 @@ The Modified Exploitability sub score is,
       parsed_vector.RL,
       parsed_vector.RC
     ))
+
+    if cvss_data.temporal < cvss_data.overall {
+      cvss_data.overall = cvss_data.temporal
+    }
   }
 
   if (has-environmental-subvector(vector)) {
@@ -409,6 +415,22 @@ The Modified Exploitability sub score is,
         parsed_vector.RC,
       )
     )
+
+    cvss_data.insert("modified_impact",
+      modified_impact(
+        parsed_vector.MS,
+        parsed_vector.MC,
+        parsed_vector.MI,
+        parsed_vector.MA,
+        parsed_vector.CR,
+        parsed_vector.IR,
+        parsed_vector.AR,
+      )
+    )
+    
+    if cvss_data.environmental < cvss_data.overall {
+      cvss_data.overall = cvss_data.environmental
+    }
   }
 
   return cvss_data
@@ -436,7 +458,7 @@ The Modified Exploitability sub score is,
  * Parse a CVSS v3.1 vector into a clickable link and automatically calulate the score.
  *
  */
-#let cvss(vector) = {
+#let cvss(vector, caption: none) = {
   let cvss_calculator_url = "https://nvd.nist.gov/vuln-metrics/cvss/v3-calculator"
   let cvss_version        = "3.1"
   let cvss_result_link    = cvss_calculator_url + "?vector=" + vector + "&version=" + cvss_version
@@ -444,16 +466,16 @@ The Modified Exploitability sub score is,
   let cvss_data = get_cvss_data(vector)
   
   let plot_data = (
-    (cvss_data.base, "Base"),
+    (cvss_data.base, "Base Score"),
     (cvss_data.impact, "Impact"),
-    (cvss_data.exploitability, "Exploitability"),
+    (cvss_data.exploitability, "Exploit-ability"),
   )
 
   let x_axis_values = (
       "", 
-      "Base",
+      "Base Score",
       "Impact",
-      "Exploitability",
+      "Exploit-ability",
   )
 
   let plot_colors = (
@@ -463,15 +485,18 @@ The Modified Exploitability sub score is,
   )
   
   if (cvss_data.keys().contains("temporal")) {
-    plot_data.push((cvss_data.temporal, "Temporal"))
-    x_axis_values.push("Temporal")
+    x_axis_values.push("Temporal Score")
+    plot_data.push((cvss_data.temporal, "Temporal Score"))
     plot_colors.push(color_from_severity(cvss_data.temporal))
   }
   
   if (cvss_data.keys().contains("environmental")) {
-    plot_data.push((cvss_data.environmental, "Environmental"))
-    x_axis_values.push("Environmental")
+    x_axis_values.push("Env. Score")
+    x_axis_values.push("Mod. Impact")
+    plot_data.push((cvss_data.environmental, "Env. Score"))
+    plot_data.push((cvss_data.modified_impact, "Mod. Impact"))
     plot_colors.push(color_from_severity(cvss_data.environmental))
+    plot_colors.push(color_from_severity(cvss_data.modified_impact))
   }
   
   let x_axis = axis(
@@ -491,51 +516,75 @@ The Modified Exploitability sub score is,
     axes: (x_axis, y_axis),
     data: plot_data
   )
-  
-  box(
-    stroke: black,
-    width:100%,
-    radius: 5pt,
-    inset: 10pt,
-    [
-      #grid(
-        columns: (auto, auto),
-        rows   : (auto),
-        column-gutter: 5pt,
-        row-gutter: 7pt,
-        [*Vector*:], link(cvss_result_link)[#vector]
-      )
-      #grid(
-        columns: (auto, 50pt, auto, 50pt, auto, auto),
-        rows   : (auto, auto),
-        column-gutter: 5pt,
-        row-gutter: 7pt,
-        [*Base Score:*],     [#cvss_data.base], 
-        [*Impact:*],         [#calc.round(cvss_data.impact, digits: 1)],
-        [*Exploitability:*], [#calc.round(cvss_data.exploitability, digits: 1)],
-        [*Temporal Score:*], [
-          #if cvss_data.keys().contains("temporal") {
-            cvss_data.temporal
-          } else { 
-            "-" 
-          }
-        ],
-        [*Environmental Score:*], [
-          #if cvss_data.keys().contains("environmental") {
-            cvss_data.environmental 
-          } else {
-            "-"
-          }
+
+  figure(
+    caption: caption,
+    box(
+      stroke: black,
+      fill  : luma(245),
+      width : 100%,
+      radius: 5pt,
+      inset : 20pt,
+      clip  : true,
+      align(left,
+        [
+          #grid(
+            columns: (auto, auto),
+            rows   : (auto),
+            column-gutter: 5pt,
+            row-gutter: 7pt,
+            [*Vector*:], link(cvss_result_link)[#vector],
+            [*CVSS:*], [#cvss_data.overall]
+          )
+          #grid(
+            columns: (auto, 50pt, auto, 50pt, auto, auto),
+            rows   : (auto, auto),
+            column-gutter: 5pt,
+            row-gutter: 7pt,
+            [*Base Score:*],     [#cvss_data.base], 
+            [*Impact:*],         [#calc.round(cvss_data.impact, digits: 1)],
+            [*Exploitability:*], [#calc.round(cvss_data.exploitability, digits: 1)],
+            [
+              #if cvss_data.keys().contains("temporal") {
+                [*Temporal Score:*]
+              } else {
+                [               ]
+              }
+            ], [
+              #if cvss_data.keys().contains("temporal") {
+                cvss_data.temporal
+              }
+            ], [
+              #if cvss_data.keys().contains("environmental") {
+                [*Env. Score:*]
+              } else {
+                [                   ]
+              }
+            ], [
+              #if cvss_data.keys().contains("environmental") {
+                cvss_data.environmental 
+              }
+            ], 
+            [
+              #if cvss_data.keys().contains("environmental") {
+                [*Mod. Impact:*]
+              }
+            ], [
+              #if cvss_data.keys().contains("environmental") {
+                calc.round(cvss_data.modified_impact, digits: 1)
+              }
+            ]
+          )
+          
+          #bar_chart(
+            cvss_plot,
+            (100%,20%),
+            bar_width: 50%,
+            fill: plot_colors,
+            caption: none
+          )
         ]
       )
-      
-      #bar_chart(
-        cvss_plot,
-        (100%,20%),
-        bar_width: 50%,
-        fill: plot_colors,
-        caption: none
-      )
-    ]
+    ),
   )
 }
