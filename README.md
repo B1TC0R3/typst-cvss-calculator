@@ -18,7 +18,7 @@ cvss(
 
 - **body [string]**: The CVSS vector.
 - **caption [none][content]**: The caption of the figure. Default: 'none'.
-- **outlines [bool]**: Whether the figure will be outlined. Default: 'true'.
+- **outlined [bool]**: Whether the figure will be outlined. Default: 'true'.
 
 ## Example
 
